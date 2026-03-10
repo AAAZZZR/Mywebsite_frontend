@@ -96,7 +96,7 @@ export default function CompanyHome() {
       </section>
 
       {/* --- Contact Section --- */}
-      {/* <section id="contact" className="w-full px-6 py-24 mt-12">
+      <section id="contact" className="w-full px-6 py-24 mt-12">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
             <h2 className="text-4xl font-extrabold mb-6 text-white">
@@ -129,7 +129,7 @@ export default function CompanyHome() {
             </div>
           </div>
         </div>
-      </section> */}
+      </section>
     </div>
   );
 }

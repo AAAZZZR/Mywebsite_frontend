@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 interface Message {
   id: string;
@@ -14,8 +13,6 @@ type ChatMode = 'hr' | 'client';
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
@@ -25,7 +22,6 @@ export default function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const turnstileRef = useRef<TurnstileInstance>(null);
 
   useEffect(() => {
     const welcomeMsg = mode === 'hr'
@@ -48,29 +44,6 @@ export default function ChatWidget() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isOpen]);
-
-  const handleIconClick = () => {
-    if (isOpen) {
-      // Close chat
-      setIsOpen(false);
-      setIsVerifying(false);
-      return;
-    }
-
-    if (isVerified) {
-      // Already verified, open directly
-      setIsOpen(true);
-    } else {
-      // Show Turnstile verification
-      setIsVerifying(true);
-    }
-  };
-
-  const handleTurnstileSuccess = () => {
-    setIsVerified(true);
-    setIsVerifying(false);
-    setIsOpen(true);
-  };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -237,36 +210,6 @@ export default function ChatWidget() {
         )}
       </AnimatePresence>
 
-      {/* --- Turnstile Verification Popup --- */}
-      <AnimatePresence>
-        {isVerifying && !isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-slate-950/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
-          >
-            <p className="text-white text-sm font-medium">Quick verification before we chat</p>
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-              onSuccess={handleTurnstileSuccess}
-              onError={() => setIsVerifying(false)}
-              onExpire={() => {
-                setIsVerifying(false);
-                turnstileRef.current?.reset();
-              }}
-            />
-            <button
-              onClick={() => setIsVerifying(false)}
-              className="text-slate-400 hover:text-white text-xs transition-colors"
-            >
-              Cancel
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* --- Trigger Button --- */}
       <div
         className="relative flex items-center"
@@ -274,7 +217,7 @@ export default function ChatWidget() {
         onMouseLeave={() => setIsHovered(false)}
       >
         <AnimatePresence>
-          {!isOpen && !isVerifying && (isHovered || !isOpen) && (
+          {!isOpen && (isHovered || !isOpen) && (
             <motion.div
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
@@ -288,15 +231,15 @@ export default function ChatWidget() {
         </AnimatePresence>
 
         <motion.button
-          onClick={handleIconClick}
+          onClick={() => setIsOpen(!isOpen)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/40 transition-all duration-300 ${isOpen || isVerifying
+          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/40 transition-all duration-300 ${isOpen
             ? 'bg-slate-800 rotate-90'
             : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:brightness-110'
             }`}
         >
-          {isOpen || isVerifying ? (
+          {isOpen ? (
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
 
 export async function POST(request: Request) {
   try {
     const { name, email, message, token } = await request.json();
 
-    // 1. Verify Turnstile Token with Cloudflare
+    // 1. Verify Turnstile token
     const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
     const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
@@ -17,44 +16,45 @@ export async function POST(request: Request) {
     if (!verifyData.success) {
       console.error('Turnstile verification failed:', verifyData);
       return NextResponse.json(
-        { error: 'Turnstile verification failed' },
+        { error: 'Verification failed' },
         { status: 400 }
       );
     }
 
-    // 2. Configure Nodemailer with OAuth2
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        type: 'OAuth2',
-        user: process.env.GMAIL_USER,
-        clientId: process.env.GMAIL_CLIENT_ID,
-        clientSecret: process.env.GMAIL_CLIENT_SECRET,
-        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+    // 2. Send email via Zeabur Email API
+    const res = await fetch('https://api.zeabur.com/api/v1/zsend/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.ZEABUR_EMAIL_API_KEY}`,
       },
+      body: JSON.stringify({
+        from: `info@leverag.xyz`,
+        to: [process.env.MY_MAIL],
+        replyTo: email,
+        subject: `New Contact: ${name}`,
+        text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #2563eb;">New Contact Form Submission</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p><strong>Message:</strong></p>
+            <p style="white-space: pre-wrap;">${message}</p>
+          </div>
+        `,
+      }),
     });
 
-    // 3. Define Email Options
-    const mailOptions = {
-      from: process.env.GMAIL_USER, // Sender (Your Authenticated Gmail)
-      to: process.env.GMAIL_USER,   // Receiver (Send to yourself)
-      replyTo: email,               // Reply directly to the user
-      subject: `New Contact: ${name}`,
-      text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #2563eb;">New Contact Form Submission</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p><strong>Message:</strong></p>
-          <p style="white-space: pre-wrap;">${message}</p>
-        </div>
-      `,
-    };
-
-    // 4. Send Email
-    await transporter.sendMail(mailOptions);
+    if (!res.ok) {
+      const errorData = await res.json();
+      console.error('Zeabur Email API error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to send message' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 interface Message {
   id: string;
@@ -13,18 +14,19 @@ type ChatMode = 'hr' | 'client';
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
-  // ✨ 1. 新增模式狀態，預設為 HR
   const [mode, setMode] = useState<ChatMode>('hr');
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
-  // ✨ 2. 當模式切換時，自動重置歡迎訊息
   useEffect(() => {
     const welcomeMsg = mode === 'hr'
       ? "👋 Hi Recruiter! I'm Rudy's AI Assistant. Ask me about his **Visa status**, **Skills**, or **Experience**."
@@ -47,6 +49,29 @@ export default function ChatWidget() {
     scrollToBottom();
   }, [messages, isOpen]);
 
+  const handleIconClick = () => {
+    if (isOpen) {
+      // Close chat
+      setIsOpen(false);
+      setIsVerifying(false);
+      return;
+    }
+
+    if (isVerified) {
+      // Already verified, open directly
+      setIsOpen(true);
+    } else {
+      // Show Turnstile verification
+      setIsVerifying(true);
+    }
+  };
+
+  const handleTurnstileSuccess = () => {
+    setIsVerified(true);
+    setIsVerifying(false);
+    setIsOpen(true);
+  };
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!inputValue.trim()) return;
@@ -64,7 +89,7 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: currentInput,
-          mode: mode // ✨ 3. 將目前的模式傳給後端
+          mode: mode
         })
       });
 
@@ -120,7 +145,7 @@ export default function ChatWidget() {
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="w-[350px] h-[550px] bg-slate-950/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
-            {/* ✨ 4. Header 改造：加入模式切換按鈕 */}
+            {/* Header */}
             <div className="p-4 border-b border-white/10 bg-slate-900/50 flex flex-col gap-3">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -137,7 +162,7 @@ export default function ChatWidget() {
                 </button>
               </div>
 
-              {/* 切換按鈕區塊 (Segmented Control) */}
+              {/* Mode Toggle */}
               <div className="flex bg-slate-800 p-1 rounded-lg border border-white/5">
                 <button
                   onClick={() => setMode('hr')}
@@ -169,7 +194,6 @@ export default function ChatWidget() {
                     : 'bg-slate-800 text-slate-200 rounded-bl-none border border-white/5'
                     }`}
                   >
-                    {/* 簡單處理 Markdown bold 語法 */}
                     {msg.content.split('**').map((part, index) =>
                       index % 2 === 1 ? <strong key={index} className="text-white font-semibold">{part}</strong> : part
                     )}
@@ -213,14 +237,44 @@ export default function ChatWidget() {
         )}
       </AnimatePresence>
 
-      {/* --- Trigger Button (保持原樣) --- */}
+      {/* --- Turnstile Verification Popup --- */}
+      <AnimatePresence>
+        {isVerifying && !isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-slate-950/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
+          >
+            <p className="text-white text-sm font-medium">Quick verification before we chat</p>
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+              onSuccess={handleTurnstileSuccess}
+              onError={() => setIsVerifying(false)}
+              onExpire={() => {
+                setIsVerifying(false);
+                turnstileRef.current?.reset();
+              }}
+            />
+            <button
+              onClick={() => setIsVerifying(false)}
+              className="text-slate-400 hover:text-white text-xs transition-colors"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Trigger Button --- */}
       <div
         className="relative flex items-center"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         <AnimatePresence>
-          {!isOpen && (isHovered || !isOpen) && (
+          {!isOpen && !isVerifying && (isHovered || !isOpen) && (
             <motion.div
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
@@ -234,15 +288,15 @@ export default function ChatWidget() {
         </AnimatePresence>
 
         <motion.button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={handleIconClick}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/40 transition-all duration-300 ${isOpen
+          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/40 transition-all duration-300 ${isOpen || isVerifying
             ? 'bg-slate-800 rotate-90'
             : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:brightness-110'
             }`}
         >
-          {isOpen ? (
+          {isOpen || isVerifying ? (
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

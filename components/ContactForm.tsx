@@ -57,13 +57,10 @@ export default function ContactForm() {
           email: formData.email,
           message: formData.message,
           token: turnstileToken,
-          source: 'company_contact_form'
         }),
       });
 
       if (!response.ok) throw new Error('Submission failed');
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       setIsSubmitted(true);
       setFormData({ name: '', email: '', message: '' });
